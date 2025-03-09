@@ -13,22 +13,9 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Authenticate with Google Cloud
-        run: |
-          echo '{
-            "type": "service_account",
-            "project_id": "gen-lang-client-0736387453",
-            "private_key_id": "eb45f5030b786f54b0d98e7eb14ff60325725f96",
-            "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC1F7yBlMzelhKp\nRjGx9/1FQBHR6cADCIJkztjrfAtf2/S1wlsR1y5f/E6NZ4ukdqnphEj2PJvbBXmr\nz03wMrl1t7S2qjjr6+IQfiXcW5ZBNpFWHn9HMS2qeGUzbEJ1536bpACBrikVS6+O\nQY+8OVZgHckG6PWSjL692kpz0Rk/4HMMfT0Y3M/HWLiOhZpGbRskOqOuVxunwwMz\neJLqTNlZZ0BeKqgbSvSIz+JRATWNxX+KT7arJsyxwv1SI2MNZWpPw2pacVkCxzPL\nKLNSibKNUEFNPo6qB/7AOr+6B3S/TT1eGbZKG7mQ8jsHl8exH5lclqsrTsjoyvvx\nbhbdYhT/AgMBAAECggEATW3sOkWawTNOoFT0i6E6iAEIfYXiBQn+4sZ0hl9f56k+\n/PYwhTTJzd2t4pUa5oOcS821ep9YjnHNX7JAI0s09AnLuWyX8PvHCYE+g/UfDhwc\nUUOx7QkwetqGftGzqwEDp92cH9aNF19onT0YDYVAktE5cnxp/7KxHbD3s4R8tMv1\nkFhD7JUP/g/OT3je2XuQOp23bhHT54dOnPKETku07QX/I7hjDji464fXvVo1wn7B\nhKvTZfxgKd+TxqymwfA5k2A4mp+SH2syJgM7Qo7G6ohfBT3lhvL4jctpg6+tVFG7\nXEAaqyd0xijuM7nWr4+lPkguMOOPjQu67vPM8sdg3QKBgQDacYO/DxRDsfvo6a8I\niXNXAvdRNX6L9GNKJ0XDEPczGvDck6tGc5+QLRjacPE4ajKisPwCO3R9euF3YQwv\nwkrapCTwSA+B11xqcoKAbWhCSVJFDinu0cgTQyIDypzs9X5G0TXBPQIlg0YGi03o\ngiuQ5tmTO5qH4X7gVTxa3v+mFQKBgQDUOkhKhJ1qjJiklYndy6AyR3Xez0cdSOJ1\nw7DQ0a7lOXFp8lM2MweYHqAxeTiChAxL0pq7FZip7ABa9bt3zoqRBrEJV2y6aiU+\nbejPcIsRQABwFVJGcVpLhtqgN1dDRitnB+/W0XzGpYpc0HKTzfNO/BYi4DnHiy4D\nu2CY+awHwwKBgQDM3T7YtXSk1ExTsK1mDTpttStrLwdCjG1+AvzrJ4Mem7qes6Mi\nzJct6Q1w+BFSfk6ExAVktovWjqLbidmbBNWc3eqCqqJYfDiA4GnBtlncKNWOS+1J\nu9avMfu5oJCxrr7B/b0zQFs+ATJwOr9TOplPKSGOcozHuNR74ZRcCN2rzQKBgEql\nUUX8jQ2r9Ah3nG1JsMfegKPkzgOL3jNDqE5aYiS35p84H3KB0lr78qZUF784SMbm\nhYvmFbM2kg1sPwrtt6k47E331QNgUEc8C1XjJNblZwIFTdH/Dp5gCUevD19XL+7m\nSMKLHlMUaK0qmBJKrxiJ7BNKQKhh2MZxQpGrx4lXAoGASjNjE0h0TBXds47UmL8z\niCVZ+lfBHABBfzqKzC0Yk8n7WnGaQWg8P011142B4kUIZgdfvFLVPzdlU9b1bWa4\nLV+f7GcJantgBLfzjNQl1zBLExhShS67oMzu23Cv6ogUkujFwyIJtZcteHI3oUp8\njzjwM72am/UdjAbmSYnrOyQ=\n-----END PRIVATE KEY-----\n",
-            "client_email": "gitlab-cloud-account@gen-lang-client-0736387453.iam.gserviceaccount.com",
-            "client_id": "101368401822933201013",
-            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-            "token_uri": "https://oauth2.googleapis.com/token",
-            "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-            "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/gitlab-cloud-account%40gen-lang-client-0736387453.iam.gserviceaccount.com",
-            "universe_domain": "googleapis.com"
-          }' > key.json
-          gcloud auth activate-service-account --key-file=key.json
-          rm key.json
+        uses: google-github-actions/auth@v1
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
 
       - name: Set up Google Cloud SDK
         uses: google-github-actions/setup-gcloud@v1

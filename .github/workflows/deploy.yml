@@ -33,4 +33,4 @@ jobs:
         run: |
           gcloud composer environments run loblaws \
             --location us-central1 \
-            trigger_dag -- Main
+            dags trigger -- Main

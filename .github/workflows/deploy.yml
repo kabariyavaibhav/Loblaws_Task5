@@ -27,12 +27,12 @@ jobs:
       - name: Upload DAG to Composer
         run: |
           gcloud composer environments storage dags import \
-            --environment ml-composer \
+            --environment loblaws \
             --location us-central1 \
             --source train_dag.py
 
       - name: Trigger DAG
         run: |
-          gcloud composer environments run ml-composer \
+          gcloud composer environments run loblaws \
             --location us-central1 \
             trigger_dag -- Main

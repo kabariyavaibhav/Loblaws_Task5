@@ -1,1 +1,33 @@
+name: Deploy to GCP
 
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Google Cloud SDK
+        uses: googleapis/gh-action-setup-gcloud@v0.2.0
+        with:
+          version: 'latest'
+          project_id: gen-lang-client-0736387453
+          service_account_key: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Upload DAG to Composer
+        run: |
+          gcloud composer environments storage dags import \
+            --environment ml-composer \
+            --location us-central1 \
+            --source train_dag.py
+
+      - name: Trigger DAG
+        run: |
+          gcloud composer environments run ml-composer \
+            --location us-central1 \
+            trigger_dag -- Main

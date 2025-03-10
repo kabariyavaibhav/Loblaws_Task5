@@ -5,9 +5,11 @@ from datetime import datetime, timedelta
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 import joblib
 from google.cloud import storage
 from airflow import DAG
+import re
 from airflow.operators.python import PythonOperator
 
 # Configure logging
@@ -59,7 +61,12 @@ def etl():
         logger.error(f"ETL failed: {str(e)}")
         raise
 
-# Feature engineering function
+def extract_pincode(address):
+    match = re.search(r'([\w\s,]+),\s([\w\s]+),\s([A-Z]{2})\s(\d{5})', address)
+    if match:
+        return match.group(4)  # Return only pincode
+    return None
+
 def feature_engineering():
     try:
         input_file = "/tmp/cleaned_data.csv"
@@ -67,13 +74,37 @@ def feature_engineering():
         sales_data = pd.read_csv(input_file)
         logger.info(f"Loaded {len(sales_data)} rows from {input_file}")
         
-        sales_data["Order Date"] = pd.to_datetime(sales_data["Order Date"], errors='coerce')
-        sales_data.dropna(subset=["Order Date"], inplace=True)
-        sales_data["Month"] = sales_data["Order Date"].dt.month
-        sales_data["Hour"] = sales_data["Order Date"].dt.hour
+        # Debug: Check for invalid Order Date values
+        invalid_dates = sales_data["Order Date"].apply(lambda x: not isinstance(x, str) or x.strip() == "Order Date")
+        if invalid_dates.any():
+            logger.warning(f"Found {invalid_dates.sum()} invalid 'Order Date' entries: {sales_data[invalid_dates]['Order Date'].head().to_list()}")
+
+        # Convert to datetime with specific format, coerce invalid to NaT
+        sales_data["Order Date"] = pd.to_datetime(sales_data["Order Date"], format="%m/%d/%y %H:%M", errors="coerce")
         
+        # Drop rows with NaT in Order Date early
+        sales_data.dropna(subset=["Order Date"], inplace=True)
+        sales_data.drop_duplicates(inplace=True)
+        
+        sales_data["Quantity Ordered"] = pd.to_numeric(sales_data["Quantity Ordered"], errors="coerce").astype(int)
+        sales_data["Price Each"] = pd.to_numeric(sales_data["Price Each"], errors="coerce")
+        sales_data["Week"] = sales_data["Order Date"].dt.isocalendar().week.fillna(0).astype(int)
+        sales_data['Pincode'] = sales_data['Purchase Address'].apply(extract_pincode)
+
+        aggregated_sales = sales_data.groupby(['Week', 'Pincode', 'Product'], as_index=False)['Quantity Ordered'].sum()
+        aggregated_sales['Last Week Quantity'] = aggregated_sales.groupby(['Pincode', 'Product'])['Quantity Ordered'].shift(1)   
+        mean_quantity = aggregated_sales[aggregated_sales['Week'] <= 4].groupby(['Pincode', 'Product'])['Quantity Ordered'].mean().reset_index()   
+        mean_quantity = mean_quantity.rename(columns={'Quantity Ordered': 'Last Week Quantity'})
+        aggregated_sales = pd.merge(aggregated_sales, mean_quantity[['Pincode', 'Product', 'Last Week Quantity']], on=['Pincode', 'Product'], how='left', suffixes=('', '_Mean'))
+        aggregated_sales['Last Week Quantity'] = aggregated_sales['Last Week Quantity'].fillna(aggregated_sales['Last Week Quantity_Mean'])
+        aggregated_sales = aggregated_sales.drop(columns=['Last Week Quantity_Mean'])
+        aggregated_sales['Last Week Quantity'] = aggregated_sales['Last Week Quantity'].fillna(0).astype(int)
+
+        label_encoder = LabelEncoder()
+        aggregated_sales['Product_id'] = label_encoder.fit_transform(aggregated_sales['Product'])
+
         output_file = "/tmp/feature_engineered_data.csv"
-        sales_data.to_csv(output_file, index=False)
+        aggregated_sales.to_csv(output_file, index=False)
         upload_blob(BUCKET_NAME, output_file, f"{PROCESSED_DIR}feature_engineered_data.csv")
         logger.info(f"Feature engineering completed. Saved to {PROCESSED_DIR}feature_engineered_data.csv")
     except Exception as e:
@@ -88,8 +119,8 @@ def train_model():
         data = pd.read_csv(input_file)
         logger.info(f"Loaded {len(data)} rows for training")
         
-        X = data[["Month", "Hour", "Quantity Ordered"]]
-        y = data["Price Each"]
+        X = data[['Week', 'Pincode',  'Last Week Quantity','Product_id']]
+        y = data['Quantity Ordered']
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
         
         model = RandomForestRegressor(n_estimators=100, random_state=42)
@@ -119,7 +150,7 @@ def validate_results():
         model_file = "/tmp/sales_model.pkl"
         download_blob(BUCKET_NAME, f"{MODEL_DIR}sales_model.pkl", model_file)
         model = joblib.load(model_file)
-        sample_input = feature_data[["Month", "Hour", "Quantity Ordered"]].iloc[0:1]
+        sample_input = feature_data[['Week', 'Pincode',  'Last Week Quantity','Product_id']].iloc[0:1]
         sample_prediction = model.predict(sample_input)[0]
         logger.info(f"Validated model: Sample prediction = {sample_prediction:.2f}")
     except Exception as e:
